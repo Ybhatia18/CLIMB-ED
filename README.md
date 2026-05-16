@@ -107,5 +107,4 @@ uvicorn app.main:app --reload
 - **Per-gym calibration helps.** Shadow analysis is more accurate when the app has seen the gym's lighting before. First-visit calibration via a reference jug is on the roadmap.
 
 
-Solo project for now. If you're a climber and want to help label photos or test the app at your gym, open an issue.
 
