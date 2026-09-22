@@ -20,6 +20,24 @@ const HOLD_TYPES = [
   "Foothold (chip)",
 ] as const;
 
+// Mirrors app/vision/pipeline.py's _COLOR_NAME_BUCKETS — same vocabulary the
+// backend uses to name a hold's detected color, so a manual override stays
+// consistent with what auto-detection would have called it. All of these
+// are valid CSS color keywords, so they can be used directly as a swatch
+// color with no hex lookup table.
+const ROUTE_COLOR_NAMES = [
+  "red",
+  "orange",
+  "yellow",
+  "green",
+  "blue",
+  "purple",
+  "pink",
+  "white",
+  "gray",
+  "black",
+] as const;
+
 type HoldTag = { type: (typeof HOLD_TYPES)[number] } | { type: "Custom"; description: string };
 
 function tagLabel(tag: HoldTag | undefined): string | null {
@@ -42,21 +60,39 @@ export default function HoldResults({
   const [activeHoldId, setActiveHoldId] = useState<number | null>(null);
   const [holdTags, setHoldTags] = useState<Record<number, HoldTag>>({});
   const [customDraft, setCustomDraft] = useState("");
+  const [colorOverrides, setColorOverrides] = useState<Record<number, string>>({});
+
+  // The color actually used for a hold: a manual correction if one was made,
+  // otherwise whatever the backend detected. A manual pick has no precise
+  // hex (it's a name, not a sampled pixel), so its swatch is just the CSS
+  // color keyword itself — still a valid color, just less exact than a
+  // sampled hex.
+  const effectiveColor = (d: HoldDetection): { name: string; swatch: string; overridden: boolean } => {
+    const override = colorOverrides[d.id];
+    if (override) return { name: override, swatch: override, overridden: true };
+    return { name: d.color_name, swatch: d.color_hex, overridden: false };
+  };
 
   const routes = useMemo(() => {
-    const byColor = new Map<string, { hex: string; count: number }>();
+    const byColor = new Map<string, { swatch: string; count: number }>();
     for (const d of result.detections) {
-      const existing = byColor.get(d.color_name);
+      const { name, swatch } = effectiveColor(d);
+      const existing = byColor.get(name);
       if (existing) existing.count += 1;
-      else byColor.set(d.color_name, { hex: d.color_hex, count: 1 });
+      else byColor.set(name, { swatch, count: 1 });
     }
-    return Array.from(byColor.entries()).map(([name, { hex, count }]) => ({ name, hex, count }));
-  }, [result.detections]);
+    return Array.from(byColor.entries()).map(([name, { swatch, count }]) => ({ name, swatch, count }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result.detections, colorOverrides]);
 
   const activeHold: HoldDetection | undefined = result.detections.find((d) => d.id === activeHoldId);
 
   const setTag = (id: number, tag: HoldTag) => {
     setHoldTags((prev) => ({ ...prev, [id]: tag }));
+  };
+
+  const setColorOverride = (id: number, name: string) => {
+    setColorOverrides((prev) => ({ ...prev, [id]: name }));
   };
 
   const selectRoute = (name: string) => {
@@ -96,7 +132,7 @@ export default function HoldResults({
               >
                 <span
                   className="h-2.5 w-2.5 rounded-full border border-black/20"
-                  style={{ backgroundColor: route.hex }}
+                  style={{ backgroundColor: route.swatch }}
                 />
                 {route.name} route ({route.count})
               </button>
@@ -111,7 +147,8 @@ export default function HoldResults({
 
         {result.detections.map((d) => {
           const [x, y, w, h] = d.bbox;
-          const dimmed = selectedColor !== null && d.color_name !== selectedColor;
+          const { name: colorName, swatch, overridden } = effectiveColor(d);
+          const dimmed = selectedColor !== null && colorName !== selectedColor;
           const tag = tagLabel(holdTags[d.id]);
           const isActive = activeHoldId === d.id;
 
@@ -125,17 +162,18 @@ export default function HoldResults({
                 top: `${(y / result.image_height) * 100}%`,
                 width: `${(w / result.image_width) * 100}%`,
                 height: `${(h / result.image_height) * 100}%`,
-                border: `${isActive ? 3 : tag ? 2.5 : 2}px solid ${d.color_hex}`,
+                border: `${isActive ? 3 : tag || overridden ? 2.5 : 2}px solid ${swatch}`,
                 opacity: dimmed ? 0.25 : 1,
                 boxShadow: isActive ? "0 0 0 2px white, 0 0 0 4px black" : undefined,
               }}
-              title={`${d.color_name} · ${d.score.toFixed(2)}${tag ? ` · ${tag}` : ""}`}
+              title={`${colorName}${overridden ? " (edited)" : ""} · ${d.score.toFixed(2)}${tag ? ` · ${tag}` : ""}`}
             >
               <span
                 className="-translate-y-full whitespace-nowrap px-1 text-[10px] font-semibold leading-tight text-black"
-                style={{ backgroundColor: d.color_hex }}
+                style={{ backgroundColor: swatch }}
               >
                 {d.score.toFixed(2)}
+                {overridden ? "*" : ""}
                 {tag ? ` · ${tag}` : ""}
               </span>
             </button>
@@ -144,33 +182,54 @@ export default function HoldResults({
       </div>
 
       {activeHold && (
-        <div className="flex w-full flex-col gap-2 rounded-xl border border-zinc-300 p-3 text-sm dark:border-zinc-700">
+        <div className="flex w-full flex-col gap-3 rounded-xl border border-zinc-300 p-3 text-sm dark:border-zinc-700">
           <p className="font-medium">
-            Hold #{activeHold.id} — {activeHold.color_name} · {activeHold.score.toFixed(2)}
+            Hold #{activeHold.id} — {effectiveColor(activeHold).name} · {activeHold.score.toFixed(2)}
           </p>
 
-          <select
-            value={holdTags[activeHold.id]?.type ?? ""}
-            onChange={(e) => {
-              const value = e.target.value;
-              if (value === "Custom") {
-                setTag(activeHold.id, { type: "Custom", description: "" });
-              } else if (value) {
-                setTag(activeHold.id, { type: value as (typeof HOLD_TYPES)[number] });
-              }
-            }}
-            className="rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
-          >
-            <option value="" disabled>
-              What kind of hold is this?
-            </option>
-            {HOLD_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-zinc-500">
+              Route color
+              {colorOverrides[activeHold.id] && ` (detected as ${activeHold.color_name})`}
+            </label>
+            <select
+              value={effectiveColor(activeHold).name}
+              onChange={(e) => setColorOverride(activeHold.id, e.target.value)}
+              className="rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+            >
+              {ROUTE_COLOR_NAMES.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-zinc-500">Hold type</label>
+            <select
+              value={holdTags[activeHold.id]?.type ?? ""}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value === "Custom") {
+                  setTag(activeHold.id, { type: "Custom", description: "" });
+                } else if (value) {
+                  setTag(activeHold.id, { type: value as (typeof HOLD_TYPES)[number] });
+                }
+              }}
+              className="rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+            >
+              <option value="" disabled>
+                What kind of hold is this?
               </option>
-            ))}
-            <option value="Custom">Custom…</option>
-          </select>
+              {HOLD_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+              <option value="Custom">Custom…</option>
+            </select>
+          </div>
 
           {holdTags[activeHold.id]?.type === "Custom" && (
             <div className="flex gap-2">
