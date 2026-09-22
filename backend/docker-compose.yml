@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: betavision
+      POSTGRES_PASSWORD: betavision
+      POSTGRES_DB: betavision
+    ports:
+      - "5432:5432"
+    volumes:
+      - betavision_pg_data:/var/lib/postgresql/data
+
+volumes:
+  betavision_pg_data:
