@@ -97,3 +97,34 @@ export async function fetchProfile(token: string) {
 export async function updateProfile(token: string, updates: Partial<UserProfile>) {
   return backendAuthPatch<UserProfile>("/users/me", token, updates);
 }
+
+export type HoldDetection = {
+  id: number;
+  bbox: [number, number, number, number]; // [x, y, w, h]
+  score: number;
+  area_px: number;
+};
+
+export type DetectHoldsResponse = {
+  image_width: number;
+  image_height: number;
+  threshold: number;
+  num_candidate_masks: number;
+  detections: HoldDetection[];
+  overlay_image_base64: string;
+};
+
+// Zero-shot SAM+CLIP prototype (backend/app/vision/) — slow (seconds to
+// tens of seconds, longer on the first call while models load), so this
+// intentionally has no timeout of its own beyond the platform's.
+export async function detectHolds(photo: Blob, threshold?: number): Promise<DetectHoldsResponse> {
+  const form = new FormData();
+  form.append("photo", photo, "wall.jpg");
+
+  const url = new URL(`${BACKEND_URL}/vision/detect-holds`);
+  if (threshold !== undefined) url.searchParams.set("threshold", String(threshold));
+
+  const res = await fetch(url, { method: "POST", body: form, cache: "no-store" });
+  if (!res.ok) throw new BackendError(res.status, await parseErrorDetail(res));
+  return res.json() as Promise<DetectHoldsResponse>;
+}

@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import type { DetectHoldsResponse } from "@/lib/backend";
+
 type CaptureStatus = "idle" | "requesting" | "streaming" | "denied" | "unsupported";
-type UploadStatus = "idle" | "uploading" | "done" | "error";
+type DetectStatus = "idle" | "detecting" | "done" | "error";
 
 export default function CameraCapture() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -14,8 +16,11 @@ export default function CameraCapture() {
   const [status, setStatus] = useState<CaptureStatus>("idle");
   const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
   const [photo, setPhoto] = useState<string | null>(null);
-  const [uploadStatus, setUploadStatus] = useState<UploadStatus>("idle");
   const [error, setError] = useState<string | null>(null);
+
+  const [threshold, setThreshold] = useState(0.5);
+  const [detectStatus, setDetectStatus] = useState<DetectStatus>("idle");
+  const [result, setResult] = useState<DetectHoldsResponse | null>(null);
 
   const stopStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -80,7 +85,8 @@ export default function CameraCapture() {
 
   const retake = () => {
     setPhoto(null);
-    setUploadStatus("idle");
+    setDetectStatus("idle");
+    setResult(null);
     setError(null);
   };
 
@@ -95,64 +101,122 @@ export default function CameraCapture() {
     reader.readAsDataURL(file);
   };
 
-  const usePhoto = async () => {
+  const runDetection = async () => {
     if (!photo) return;
-    setUploadStatus("uploading");
+    setDetectStatus("detecting");
     setError(null);
     try {
       const blob = await (await fetch(photo)).blob();
       const form = new FormData();
       form.append("photo", blob, "wall.jpg");
+      form.append("threshold", String(threshold));
 
-      const res = await fetch("/api/upload", { method: "POST", body: form });
-      if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+      const res = await fetch("/api/detect-holds", { method: "POST", body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `Detection failed (${res.status})`);
 
-      setUploadStatus("done");
+      setResult(data as DetectHoldsResponse);
+      setDetectStatus("done");
     } catch (err) {
-      setUploadStatus("error");
-      setError(err instanceof Error ? err.message : "Upload failed.");
+      setDetectStatus("error");
+      setError(err instanceof Error ? err.message : "Detection failed.");
     }
   };
 
   if (photo) {
+    const showingResult = detectStatus === "done" && result;
+
     return (
       <div className="flex w-full flex-col items-center gap-4">
         <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={photo} alt="Captured climbing wall" className="w-full" />
+          <img
+            src={showingResult ? `data:image/png;base64,${result.overlay_image_base64}` : photo}
+            alt="Captured climbing wall"
+            className="w-full"
+          />
         </div>
 
         <canvas ref={canvasRef} className="hidden" />
 
-        {uploadStatus === "done" ? (
-          <div className="flex flex-col items-center gap-3 text-center">
-            <p className="text-sm font-medium text-green-600 dark:text-green-400">
-              Photo uploaded. Route segmentation isn&apos;t wired up yet — this
-              is the Phase 0 round trip.
+        {showingResult ? (
+          <div className="flex w-full max-w-md flex-col items-center gap-3 text-center">
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              Kept {result.detections.length} of {result.num_candidate_masks}{" "}
+              candidate masks at threshold {result.threshold.toFixed(2)}.
+              Zero-shot SAM+CLIP prototype — no trained model, expect misses
+              and false positives.
             </p>
-            <button
-              onClick={retake}
-              className="rounded-full border border-zinc-300 px-5 py-2 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
-            >
-              Take another photo
-            </button>
+
+            {result.detections.length > 0 && (
+              <ul className="flex w-full flex-wrap justify-center gap-2">
+                {result.detections.map((d) => (
+                  <li
+                    key={d.id}
+                    className="rounded-full border border-zinc-300 px-2.5 py-1 text-xs font-medium dark:border-zinc-700"
+                  >
+                    #{d.id} · {d.score.toFixed(2)}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={retake}
+                className="rounded-full border border-zinc-300 px-5 py-2 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
+              >
+                Take another photo
+              </button>
+              <button
+                onClick={() => setDetectStatus("idle")}
+                className="rounded-full border border-zinc-300 px-5 py-2 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
+              >
+                Try a different threshold
+              </button>
+            </div>
           </div>
         ) : (
-          <div className="flex gap-3">
-            <button
-              onClick={retake}
-              disabled={uploadStatus === "uploading"}
-              className="rounded-full border border-zinc-300 px-5 py-2 text-sm font-medium hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
-            >
-              Retake
-            </button>
-            <button
-              onClick={usePhoto}
-              disabled={uploadStatus === "uploading"}
-              className="rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background hover:bg-[#383838] disabled:opacity-50 dark:hover:bg-[#ccc]"
-            >
-              {uploadStatus === "uploading" ? "Uploading..." : "Use this photo"}
-            </button>
+          <div className="flex w-full max-w-md flex-col items-center gap-3">
+            <label className="flex w-full items-center gap-3 text-sm">
+              <span className="whitespace-nowrap text-zinc-600 dark:text-zinc-400">
+                Threshold {threshold.toFixed(2)}
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={threshold}
+                onChange={(e) => setThreshold(Number(e.target.value))}
+                disabled={detectStatus === "detecting"}
+                className="flex-1"
+              />
+            </label>
+
+            <div className="flex gap-3">
+              <button
+                onClick={retake}
+                disabled={detectStatus === "detecting"}
+                className="rounded-full border border-zinc-300 px-5 py-2 text-sm font-medium hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+              >
+                Retake
+              </button>
+              <button
+                onClick={runDetection}
+                disabled={detectStatus === "detecting"}
+                className="rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background hover:bg-[#383838] disabled:opacity-50 dark:hover:bg-[#ccc]"
+              >
+                {detectStatus === "detecting" ? "Detecting…" : "Detect holds"}
+              </button>
+            </div>
+
+            {detectStatus === "detecting" && (
+              <p className="text-xs text-zinc-500">
+                Can take up to a minute on the first request while the SAM
+                and CLIP models load — faster after that.
+              </p>
+            )}
           </div>
         )}
 
