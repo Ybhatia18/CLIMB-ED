@@ -18,6 +18,7 @@ export default function CameraCapture() {
   const [photo, setPhoto] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [autoThreshold, setAutoThreshold] = useState(true);
   const [threshold, setThreshold] = useState(0.5);
   const [detectStatus, setDetectStatus] = useState<DetectStatus>("idle");
   const [result, setResult] = useState<DetectHoldsResponse | null>(null);
@@ -109,7 +110,7 @@ export default function CameraCapture() {
       const blob = await (await fetch(photo)).blob();
       const form = new FormData();
       form.append("photo", blob, "wall.jpg");
-      form.append("threshold", String(threshold));
+      form.append("threshold", autoThreshold ? "auto" : String(threshold));
 
       const res = await fetch("/api/detect-holds", { method: "POST", body: form });
       const data = await res.json();
@@ -143,9 +144,10 @@ export default function CameraCapture() {
           <div className="flex w-full max-w-md flex-col items-center gap-3 text-center">
             <p className="text-sm text-zinc-600 dark:text-zinc-400">
               Kept {result.detections.length} of {result.num_candidate_masks}{" "}
-              candidate masks at threshold {result.threshold.toFixed(2)}.
-              Zero-shot SAM+CLIP prototype — no trained model, expect misses
-              and false positives.
+              candidate masks at threshold {result.threshold.toFixed(2)}
+              {result.threshold_auto ? " (auto-selected)" : ""}. Zero-shot
+              SAM+CLIP prototype — no trained model, expect misses and false
+              positives.
             </p>
 
             {result.detections.length > 0 && (
@@ -153,9 +155,13 @@ export default function CameraCapture() {
                 {result.detections.map((d) => (
                   <li
                     key={d.id}
-                    className="rounded-full border border-zinc-300 px-2.5 py-1 text-xs font-medium dark:border-zinc-700"
+                    className="flex items-center gap-1.5 rounded-full border border-zinc-300 px-2.5 py-1 text-xs font-medium dark:border-zinc-700"
                   >
-                    #{d.id} · {d.score.toFixed(2)}
+                    <span
+                      className="h-2.5 w-2.5 rounded-full border border-black/20"
+                      style={{ backgroundColor: d.color_hex }}
+                    />
+                    {d.color_name} · {d.score.toFixed(2)}
                   </li>
                 ))}
               </ul>
@@ -178,6 +184,19 @@ export default function CameraCapture() {
           </div>
         ) : (
           <div className="flex w-full max-w-md flex-col items-center gap-3">
+            <label className="flex w-full items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={autoThreshold}
+                onChange={(e) => setAutoThreshold(e.target.checked)}
+                disabled={detectStatus === "detecting"}
+              />
+              <span className="text-zinc-600 dark:text-zinc-400">
+                Auto-tune threshold (recommended — finds the cutoff that
+                separates real holds from background per photo)
+              </span>
+            </label>
+
             <label className="flex w-full items-center gap-3 text-sm">
               <span className="whitespace-nowrap text-zinc-600 dark:text-zinc-400">
                 Threshold {threshold.toFixed(2)}
@@ -189,8 +208,8 @@ export default function CameraCapture() {
                 step={0.05}
                 value={threshold}
                 onChange={(e) => setThreshold(Number(e.target.value))}
-                disabled={detectStatus === "detecting"}
-                className="flex-1"
+                disabled={detectStatus === "detecting" || autoThreshold}
+                className="flex-1 disabled:opacity-40"
               />
             </label>
 

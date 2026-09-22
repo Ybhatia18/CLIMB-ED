@@ -52,9 +52,12 @@ run locally: **SAM** (ViT-B) proposes candidate object masks on a wall
 photo, then **CLIP** (open_clip, `ViT-B-32`/`laion2b_s34b_b79k`) scores
 each masked crop against "a photo of a climbing hold"-style prompts vs.
 "a photo of a blank wall"-style prompts. Whatever clears the score
-threshold gets kept. This is the stopgap from the spec discussion, not
-the real pipeline (§4.3) — it exists to validate the idea before spending
-time on a labeled dataset and a fine-tuned YOLO model.
+threshold gets kept, and each kept hold gets a dominant color (median
+RGB under its mask, named via HSV hue bucket — spec §3.1's "cluster
+by color to select a route") baked in for free since we already have
+the mask. This is the stopgap from the spec discussion, not the real
+pipeline (§4.3) — it exists to validate the idea before spending time
+on a labeled dataset and a fine-tuned YOLO model.
 
 **Setup.** Already installed if you ran `pip install -r requirements.txt`
 after this was added. Two one-time downloads happen automatically the
@@ -74,37 +77,46 @@ first time the pipeline runs (not on `pip install`):
 
 ```bash
 source .venv/bin/activate
-python3 scripts/detect_holds_cli.py path/to/wall.jpg --threshold 0.5
+python3 scripts/detect_holds_cli.py path/to/wall.jpg
 ```
 
 Saves `overlay.png` (original image with kept masks tinted, boxed, and
-score-labeled) next to wherever you run it from, and prints the detection
-list as JSON. Swap `--threshold` and re-run — model loading is the slow
-part (SAM + CLIP take a while on first load each process run), so keep
-one Python process alive across edits (e.g. `python3 -i`) if you're
-iterating a lot, rather than re-running the script from scratch each time.
+labeled with score + color name) next to wherever you run it from, and
+prints the detection list as JSON, including `color_hex`/`color_name` per
+hold. Swap `--threshold` and re-run — model loading is the slow part
+(SAM + CLIP take a while on first load each process run), so keep one
+Python process alive across edits (e.g. `python3 -i`) if you're iterating
+a lot, rather than re-running the script from scratch each time.
 
 **Via the API** (same pipeline, multipart upload, returns the overlay as
 base64 PNG instead of a file):
 
 ```bash
-curl -X POST "http://localhost:8000/vision/detect-holds?threshold=0.5" \
-  -F "photo=@wall.jpg"
+curl -X POST "http://localhost:8000/vision/detect-holds" -F "photo=@wall.jpg"
 ```
 
 Or use `http://localhost:8000/docs` — Swagger UI gives you a file picker
 and shows the JSON response inline, no curl needed.
 
-**What the threshold does.** Each SAM candidate mask gets a CLIP-derived
-`P(hold)` score in `[0, 1]` — softmax between the "hold" and "background"
-prompt classes, not a raw similarity score, so 0.5 is a genuine "CLIP is
-unsure" midpoint. `--threshold` is the cutoff for keeping a detection.
-Lower it to catch more holds (more false positives too); raise it to cut
-false positives (you'll drop real holds, especially unusual ones). There's
-no universally-right value — it depends on your prompts, the wall, and how
-much you'd rather over- or under-detect. `config.DEFAULT_THRESHOLD` is
-`0.5`; there's nothing special about that number, it's just a starting
-point.
+**What the threshold does, and why the default is "auto."** Each SAM
+candidate mask gets a CLIP-derived `P(hold)` score in `[0, 1]` — softmax
+between the "hold" and "background" prompt classes, not a raw similarity
+score. A single static cutoff (0.5, or anything else) is wrong for a lot
+of photos: some walls give CLIP a confident, well-separated score
+distribution; others sit clustered near the middle. `threshold=auto`
+(the default, both here and in the CLI) runs
+[**Otsu's method**](https://en.wikipedia.org/wiki/Otsu%27s_method) on the
+scores for *that specific photo* — the classic automatic-thresholding
+technique, picks whatever cutoff maximizes the separation between the
+"hold" cluster and the "background" cluster, clamped to
+`[AUTO_THRESHOLD_MIN, AUTO_THRESHOLD_MAX]` (0.35–0.75) so a weird
+distribution can't pick something degenerate. The response's `threshold`
+field always reports the actual numeric value used, and `threshold_auto`
+says whether it was picked automatically. Pass a number in `[0, 1]`
+(`--threshold 0.5`, `?threshold=0.5`) to override it manually — lower
+catches more holds at the cost of more false positives, higher does the
+reverse and starts dropping real ones, which is exactly the "auto" mode
+exists to avoid guessing at per-photo.
 
 **If results look bad** (expected — CLIP wasn't trained on climbing
 holds specifically): tune `app/vision/config.py` in this order before
@@ -114,7 +126,8 @@ assuming something's broken:
    more specific to what you're actually photographing (gym lighting,
    hold material, wall color). These get mean-pooled into one embedding
    per class, so more variants generally helps more than it hurts.
-2. `--threshold` — see above.
+2. `--threshold` — override "auto" manually if it's landing somewhere
+   consistently wrong for your photos; see above.
 3. `SAM_POINTS_PER_SIDE` — more points means SAM proposes more/finer
    candidate masks (slower); fewer means faster but you'll miss small or
    oddly-shaped holds. Default (24) is already below SAM's own default
@@ -137,9 +150,11 @@ that ever changes upstream.
 **Known limitations, on purpose (prototype, not production):** no auth on
 the endpoint yet; SAM's masks aren't mutually exclusive, so overlapping
 holds can each surface as separate detections (no dedup/NMS implemented);
-runs synchronously in-request, so a real deployment would need a queue or
-background worker instead of blocking an HTTP request for tens of
-seconds.
+color naming is a fixed hue-wheel bucket (`pipeline._COLOR_NAME_BUCKETS`),
+not calibrated to any real gym's palette, and will mis-bucket anything
+near a hue boundary or under colored gym lighting; runs synchronously
+in-request, so a real deployment would need a queue or background worker
+instead of blocking an HTTP request for tens of seconds.
 
 ## Database migrations
 

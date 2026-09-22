@@ -103,12 +103,16 @@ export type HoldDetection = {
   bbox: [number, number, number, number]; // [x, y, w, h]
   score: number;
   area_px: number;
+  color_rgb: [number, number, number];
+  color_hex: string;
+  color_name: string;
 };
 
 export type DetectHoldsResponse = {
   image_width: number;
   image_height: number;
   threshold: number;
+  threshold_auto: boolean;
   num_candidate_masks: number;
   detections: HoldDetection[];
   overlay_image_base64: string;
@@ -116,13 +120,15 @@ export type DetectHoldsResponse = {
 
 // Zero-shot SAM+CLIP prototype (backend/app/vision/) — slow (seconds to
 // tens of seconds, longer on the first call while models load), so this
-// intentionally has no timeout of its own beyond the platform's.
-export async function detectHolds(photo: Blob, threshold?: number): Promise<DetectHoldsResponse> {
+// intentionally has no timeout of its own beyond the platform's. threshold
+// is "auto" (Otsu's method, per-photo — the backend's own default too) or
+// a number in [0, 1] to override it.
+export async function detectHolds(photo: Blob, threshold: number | "auto" = "auto"): Promise<DetectHoldsResponse> {
   const form = new FormData();
   form.append("photo", photo, "wall.jpg");
 
   const url = new URL(`${BACKEND_URL}/vision/detect-holds`);
-  if (threshold !== undefined) url.searchParams.set("threshold", String(threshold));
+  url.searchParams.set("threshold", String(threshold));
 
   const res = await fetch(url, { method: "POST", body: form, cache: "no-store" });
   if (!res.ok) throw new BackendError(res.status, await parseErrorDetail(res));

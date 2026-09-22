@@ -51,6 +51,17 @@ BACKGROUND_PROMPTS = [
 
 DEFAULT_THRESHOLD = 0.5
 
+# "auto" threshold mode (the default — see pipeline._otsu_threshold) picks a
+# per-photo cutoff via Otsu's method: the value that best separates the
+# CLIP scores into a "hold" cluster and a "background" cluster, instead of
+# one static number that's wrong for half your photos. Clamped to this band
+# so a weird score distribution (e.g. everything scores high, or nothing
+# separates cleanly) can't pick something degenerate — too low re-admits
+# the junk Otsu was supposed to filter, too high starts cutting real holds.
+AUTO_THRESHOLD_MIN = 0.35
+AUTO_THRESHOLD_MAX = 0.75
+
+
 def _default_device() -> str:
     if torch.backends.mps.is_available():
         return "mps"

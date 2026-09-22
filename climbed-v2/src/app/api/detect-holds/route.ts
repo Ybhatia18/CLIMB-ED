@@ -18,7 +18,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No photo provided." }, { status: 400 });
   }
 
-  const threshold = typeof thresholdRaw === "string" && thresholdRaw !== "" ? Number(thresholdRaw) : undefined;
+  const threshold: number | "auto" =
+    typeof thresholdRaw === "string" && thresholdRaw !== "" && thresholdRaw !== "auto"
+      ? Number(thresholdRaw)
+      : "auto";
 
   try {
     const result = await detectHolds(photo, threshold);
