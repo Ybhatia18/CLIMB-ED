@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { DetectHoldsResponse } from "@/lib/backend";
+import HoldResults from "@/components/HoldResults";
 
 type CaptureStatus = "idle" | "requesting" | "streaming" | "denied" | "unsupported";
 type DetectStatus = "idle" | "detecting" | "done" | "error";
@@ -127,117 +128,80 @@ export default function CameraCapture() {
   if (photo) {
     const showingResult = detectStatus === "done" && result;
 
+    if (showingResult) {
+      return (
+        <HoldResults
+          photo={photo}
+          result={result}
+          onRetake={retake}
+          onTryDifferentThreshold={() => setDetectStatus("idle")}
+        />
+      );
+    }
+
     return (
       <div className="flex w-full flex-col items-center gap-4">
         <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={showingResult ? `data:image/png;base64,${result.overlay_image_base64}` : photo}
-            alt="Captured climbing wall"
-            className="w-full"
-          />
+          <img src={photo} alt="Captured climbing wall" className="w-full" />
         </div>
 
         <canvas ref={canvasRef} className="hidden" />
 
-        {showingResult ? (
-          <div className="flex w-full max-w-md flex-col items-center gap-3 text-center">
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">
-              Kept {result.detections.length} of {result.num_candidate_masks}{" "}
-              candidate masks at threshold {result.threshold.toFixed(2)}
-              {result.threshold_auto ? " (auto-selected)" : ""}. Zero-shot
-              SAM+CLIP prototype — no trained model, expect misses and false
-              positives.
+        <div className="flex w-full max-w-md flex-col items-center gap-3">
+          <label className="flex w-full items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={autoThreshold}
+              onChange={(e) => setAutoThreshold(e.target.checked)}
+              disabled={detectStatus === "detecting"}
+            />
+            <span className="text-zinc-600 dark:text-zinc-400">
+              Auto-tune threshold (recommended — finds the cutoff that
+              separates real holds from background per photo)
+            </span>
+          </label>
+
+          <label className="flex w-full items-center gap-3 text-sm">
+            <span className="whitespace-nowrap text-zinc-600 dark:text-zinc-400">
+              Threshold {threshold.toFixed(2)}
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={threshold}
+              onChange={(e) => setThreshold(Number(e.target.value))}
+              disabled={detectStatus === "detecting" || autoThreshold}
+              className="flex-1 disabled:opacity-40"
+            />
+          </label>
+
+          <div className="flex gap-3">
+            <button
+              onClick={retake}
+              disabled={detectStatus === "detecting"}
+              className="rounded-full border border-zinc-300 px-5 py-2 text-sm font-medium hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+            >
+              Retake
+            </button>
+            <button
+              onClick={runDetection}
+              disabled={detectStatus === "detecting"}
+              className="rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background hover:bg-[#383838] disabled:opacity-50 dark:hover:bg-[#ccc]"
+            >
+              {detectStatus === "detecting" ? "Detecting…" : "Detect holds"}
+            </button>
+          </div>
+
+          {detectStatus === "detecting" && (
+            <p className="text-xs text-zinc-500">
+              Can take up to a minute on the first request while the SAM and
+              CLIP models load — faster after that.
             </p>
-
-            {result.detections.length > 0 && (
-              <ul className="flex w-full flex-wrap justify-center gap-2">
-                {result.detections.map((d) => (
-                  <li
-                    key={d.id}
-                    className="flex items-center gap-1.5 rounded-full border border-zinc-300 px-2.5 py-1 text-xs font-medium dark:border-zinc-700"
-                  >
-                    <span
-                      className="h-2.5 w-2.5 rounded-full border border-black/20"
-                      style={{ backgroundColor: d.color_hex }}
-                    />
-                    {d.color_name} · {d.score.toFixed(2)}
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            <div className="flex gap-3 pt-1">
-              <button
-                onClick={retake}
-                className="rounded-full border border-zinc-300 px-5 py-2 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
-              >
-                Take another photo
-              </button>
-              <button
-                onClick={() => setDetectStatus("idle")}
-                className="rounded-full border border-zinc-300 px-5 py-2 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
-              >
-                Try a different threshold
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="flex w-full max-w-md flex-col items-center gap-3">
-            <label className="flex w-full items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={autoThreshold}
-                onChange={(e) => setAutoThreshold(e.target.checked)}
-                disabled={detectStatus === "detecting"}
-              />
-              <span className="text-zinc-600 dark:text-zinc-400">
-                Auto-tune threshold (recommended — finds the cutoff that
-                separates real holds from background per photo)
-              </span>
-            </label>
-
-            <label className="flex w-full items-center gap-3 text-sm">
-              <span className="whitespace-nowrap text-zinc-600 dark:text-zinc-400">
-                Threshold {threshold.toFixed(2)}
-              </span>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.05}
-                value={threshold}
-                onChange={(e) => setThreshold(Number(e.target.value))}
-                disabled={detectStatus === "detecting" || autoThreshold}
-                className="flex-1 disabled:opacity-40"
-              />
-            </label>
-
-            <div className="flex gap-3">
-              <button
-                onClick={retake}
-                disabled={detectStatus === "detecting"}
-                className="rounded-full border border-zinc-300 px-5 py-2 text-sm font-medium hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
-              >
-                Retake
-              </button>
-              <button
-                onClick={runDetection}
-                disabled={detectStatus === "detecting"}
-                className="rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background hover:bg-[#383838] disabled:opacity-50 dark:hover:bg-[#ccc]"
-              >
-                {detectStatus === "detecting" ? "Detecting…" : "Detect holds"}
-              </button>
-            </div>
-
-            {detectStatus === "detecting" && (
-              <p className="text-xs text-zinc-500">
-                Can take up to a minute on the first request while the SAM
-                and CLIP models load — faster after that.
-              </p>
-            )}
-          </div>
-        )}
+          )}
+        </div>
 
         {error && <p className="text-sm text-red-500">{error}</p>}
       </div>
