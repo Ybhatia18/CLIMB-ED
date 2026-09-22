@@ -1,9 +1,8 @@
 # CLIMB-ED — web client
 
 Next.js (App Router, TypeScript, Tailwind) client for CLIMB-ED, per
-[`climbing_app_spec.md`](../../ClimbED_v2/climbing_app_spec.md), pivoted from
-the spec's React Native/Expo plan to a browser-based webapp for deployment on
-Vercel.
+[`climbing_app_spec.md`](../climbing_app_spec.md), pivoted from the spec's
+React Native/Expo plan to a browser-based webapp for deployment on Vercel.
 
 ## What's here (Phase 0)
 
