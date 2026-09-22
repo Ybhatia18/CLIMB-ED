@@ -4,12 +4,12 @@ const FEATURES = [
   {
     title: "Route segmentation",
     description:
-      "Take a photo of the wall. BetaVision detects every hold and clusters them by color, so tapping one route lights up the whole line — including the ones tucked in shadow.",
+      "Take a photo of the wall. CLIMB-ED detects every hold and clusters them by color, so tapping one route lights up the whole line — including the ones tucked in shadow.",
   },
   {
     title: "Honest difficulty calibration",
     description:
-      "Gym grades drift from setter to setter and gym to gym. BetaVision scores hold type, spacing, and wall angle to give a gym-agnostic grade with a confidence interval.",
+      "Gym grades drift from setter to setter and gym to gym. CLIMB-ED scores hold type, spacing, and wall angle to give a gym-agnostic grade with a confidence interval.",
   },
   {
     title: "Step-by-step beta walkthrough",
@@ -32,7 +32,7 @@ export default function Home() {
           For climbers in their first 6–18 months
         </span>
         <h1 className="max-w-2xl text-4xl font-semibold tracking-tight text-black sm:text-5xl dark:text-zinc-50">
-          You can see the holds. BetaVision shows you the movement.
+          You can see the holds. CLIMB-ED shows you the movement.
         </h1>
         <p className="max-w-xl text-lg leading-7 text-zinc-600 dark:text-zinc-400">
           Photograph a climbing wall, tap a route, and get a physics-aware,

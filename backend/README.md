@@ -1,4 +1,4 @@
-# BetaVision API
+# CLIMB-ED API
 
 FastAPI backend: email/password + Google auth, and the personalization
 profile fields from the spec (§3.4 — height, ape index, weight, dominant
@@ -23,7 +23,7 @@ uvicorn app.main:app --reload --port 8000
 API docs at `http://localhost:8000/docs`.
 
 Without Docker, `DATABASE_URL` can point at SQLite instead
-(`sqlite:///./betavision.db`) for quick local testing — just don't use that
+(`sqlite:///./climbed.db`) for quick local testing — just don't use that
 in production.
 
 ## Endpoints

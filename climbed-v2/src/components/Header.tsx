@@ -17,7 +17,7 @@ export default function Header({ user }: { user: UserProfile | null }) {
   return (
     <header className="flex w-full items-center justify-between border-b border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-black">
       <Link href="/" className="font-semibold tracking-tight text-black dark:text-zinc-50">
-        BetaVision
+        CLIMB-ED
       </Link>
 
       <nav className="flex items-center gap-4 text-sm">

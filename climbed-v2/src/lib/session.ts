@@ -1,4 +1,4 @@
-export const SESSION_COOKIE = "betavision_session";
+export const SESSION_COOKIE = "climbed_session";
 export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7; // 7 days, mirrors backend JWT_EXPIRE_MINUTES
 
 export const sessionCookieOptions = {

@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "BetaVision",
+  title: "CLIMB-ED",
   description: "AI-powered climbing route assistant",
 };
 

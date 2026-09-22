@@ -12,12 +12,12 @@ Built with React Native + Expo on the frontend and FastAPI + PyTorch on the back
 
 Beginner climbers can see the holds but struggle to read the *movement*. YouTube beta videos exist for famous outdoor lines, but inside a gym you're on your own. Existing climbing apps (Kaya, Boulder Companion, etc.) focus on logging and social features — none of them actually coach you through a route.
 
-BetaVision is the coach.
+CLIMB-ED is the coach.
 
 ## Features
 
 - **Route segmentation.** Upload a photo of a wall. The app detects every hold, clusters by color, and lets you tap a single hold to highlight the full route.
-- **Honest difficulty grading.** Gym grades drift between setters and locations. BetaVision estimates a gym-agnostic difficulty score based on hold types, spacing, wall angle, and the body positions the route forces.
+- **Honest difficulty grading.** Gym grades drift between setters and locations. CLIMB-ED estimates a gym-agnostic difficulty score based on hold types, spacing, wall angle, and the body positions the route forces.
 - **Physics-based beta engine.** Models the climber as a 4-point-of-contact kinematic chain and searches over candidate sequences. Scores each pose on static equilibrium and joint strain, returning the sequence that's most stable and least punishing.
 - **Step-by-step dummy walkthrough.** A stick-figure climber overlaid on your photo, one move at a time. Tap "next" to advance. Color-coded contact points (red = hands, blue = feet) with text cues like "drop knee right" or "flag your left foot."
 - **Personalization.** Set your height, ape index, and weight. The optimizer re-runs with your morphology so a 5'4" climber and a 6'2" climber get different recommended beta on the same route.

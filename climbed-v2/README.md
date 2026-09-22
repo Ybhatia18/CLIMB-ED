@@ -1,6 +1,6 @@
-# BetaVision — web client
+# CLIMB-ED — web client
 
-Next.js (App Router, TypeScript, Tailwind) client for BetaVision, per
+Next.js (App Router, TypeScript, Tailwind) client for CLIMB-ED, per
 [`climbing_app_spec.md`](../../ClimbED_v2/climbing_app_spec.md), pivoted from
 the spec's React Native/Expo plan to a browser-based webapp for deployment on
 Vercel.

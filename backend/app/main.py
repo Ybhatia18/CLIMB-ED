@@ -6,7 +6,7 @@ from app.routers import auth, users
 
 settings = get_settings()
 
-app = FastAPI(title="BetaVision API")
+app = FastAPI(title="CLIMB-ED API")
 
 app.add_middleware(
     CORSMiddleware,
