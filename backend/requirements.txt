@@ -12,3 +12,13 @@ python-jose[cryptography]==3.3.0
 google-auth==2.35.0
 requests==2.32.3
 python-dotenv==1.0.1
+
+# Zero-shot hold detection prototype (SAM + CLIP) — see app/vision/
+python-multipart==0.0.12
+torch==2.6.0
+torchvision==0.21.0
+opencv-python-headless==4.10.0.84
+open_clip_torch==2.24.0
+segment-anything==1.0
+pillow==10.4.0
+numpy==1.26.4
